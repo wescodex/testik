@@ -152,14 +152,47 @@ async def init_bot():
         application.job_queue.run_repeating(scheduled_news_check, interval=60, first=10)
         
         logger.info("Bot initialized successfully")
-        
-        # Запускаем бота
-        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+        return application
     except Exception as e:
         logger.error(f"Ошибка при инициализации бота: {str(e)}")
         raise
 
-def fetch_news(channel_name, channel_config):
+async def main():
+    """Main function to run the bot"""
+    try:
+        # Создаем папку для логов, если её нет
+        if not os.path.exists('logs'):
+            os.makedirs('logs')
+            
+        # Настраиваем логирование
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('bot.log'),
+                logging.StreamHandler()
+            ]
+        )
+        
+        logger.info("Starting bot...")
+        
+        # Инициализируем и запускаем бота
+        application = await init_bot()
+        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+        
+    except Exception as e:
+        logger.error(f"Критическая ошибка при запуске бота: {str(e)}")
+        raise
+
+def run_bot():
+    """Run the bot"""
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        logger.error(f"Критическая ошибка при запуске бота: {str(e)}")
+        sys.exit(1)
+
+async def fetch_news(channel_name, channel_config):
     """Получение новостей для канала"""
     logger.info(f"Получение новостей для канала {channel_name} (ID: {channel_config['channel_id']})")
     
@@ -213,7 +246,7 @@ def fetch_news(channel_name, channel_config):
         logger.error(f"Ошибка при получении новостей: {str(e)}", exc_info=True)
         return None
 
-def generate_post(news_item, channel_config):
+async def generate_post(news_item, channel_config):
     """Generate a unique post using Gemini AI based on news and channel specifics"""
     logger.info("Генерация контента с помощью Gemini AI")
     
@@ -301,7 +334,7 @@ async def process_news():
             continue
         
         logger.info(f"Получение новостей для канала {channel_name}")
-        news_data = fetch_news(channel_name, channel_info)
+        news_data = await fetch_news(channel_name, channel_info)
         
         if not news_data:
             logger.info(f"Нет новостей для канала {channel_name}")
@@ -317,7 +350,7 @@ async def process_news():
                 continue
                 
             logger.info("Генерация контента с помощью Gemini AI")
-            post_content = generate_post(news_item, channel_info)
+            post_content = await generate_post(news_item, channel_info)
             if not post_content:
                 continue
                 
@@ -395,31 +428,6 @@ async def manual_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         error_message = f"❌ Ошибка при публикации: {str(e)}"
         logger.error(error_message)
         await update.message.reply_text(error_message)
-
-def run_bot():
-    """Run the bot"""
-    try:
-        # Создаем папку для логов, если её нет
-        if not os.path.exists('logs'):
-            os.makedirs('logs')
-            
-        # Настраиваем логирование
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('logs/bot.log', 'w', encoding='utf-8'),
-                logging.StreamHandler()  # Добавляем вывод в консоль
-            ]
-        )
-        
-        logger.info("Starting bot...")
-        
-        asyncio.run(init_bot())
-        
-    except Exception as e:
-        logger.error(f"Критическая ошибка при запуске бота: {str(e)}", exc_info=True)
-        sys.exit(1)
 
 if __name__ == "__main__":
     run_bot()
