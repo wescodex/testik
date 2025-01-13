@@ -136,26 +136,27 @@ bot = None
 api_stats = ApiUsageStats()
 news_manager = NewsManager()
 
-def init_bot():
-    """Инициализация бота"""
-    global bot
+async def init_bot():
+    """Initialize the bot and set up command handlers"""
     try:
+        global bot
         application = Application.builder().token(TELEGRAM_TOKEN).build()
         bot = application.bot
-        
+
         # Добавляем обработчики команд
         application.add_handler(CommandHandler("start", start_command))
         application.add_handler(CommandHandler("status", status_command))
         application.add_handler(CommandHandler("post", manual_post))
+
+        # Настраиваем планировщик задач
+        application.job_queue.run_repeating(scheduled_news_check, interval=60, first=10)
         
-        # Добавляем периодическую проверку новостей
-        job_queue = application.job_queue
-        job_queue.run_repeating(scheduled_news_check, interval=60, first=10)
+        logger.info("Bot initialized successfully")
         
         # Запускаем бота
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        await application.run_polling(allowed_updates=Update.ALL_TYPES)
     except Exception as e:
-        logger.error(f"Ошибка при инициализации бота: {str(e)}", exc_info=True)
+        logger.error(f"Ошибка при инициализации бота: {str(e)}")
         raise
 
 def fetch_news(channel_name, channel_config):
@@ -396,7 +397,7 @@ async def manual_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(error_message)
 
 def run_bot():
-    """Запуск бота"""
+    """Run the bot"""
     try:
         # Создаем папку для логов, если её нет
         if not os.path.exists('logs'):
@@ -414,7 +415,7 @@ def run_bot():
         
         logger.info("Starting bot...")
         
-        init_bot()
+        asyncio.run(init_bot())
         
     except Exception as e:
         logger.error(f"Критическая ошибка при запуске бота: {str(e)}", exc_info=True)
